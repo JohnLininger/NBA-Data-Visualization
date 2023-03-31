@@ -1,0 +1,247 @@
+---
+title: "Oklahoma City Thunder Shot Progression From 2017 to 2021"
+author: "John Lininger"
+date: '2023-03-31'
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,message=FALSE,warning=FALSE,echo=FALSE,include=FALSE}
+library(tidyverse)
+library(gganimate)
+library(devtools)
+library(nbastatR)
+library(png)
+library(gifski)
+library(ggpubr)
+```
+
+
+```{r,message=FALSE,echo=FALSE,include=FALSE}
+#Bringing in shot data
+Sys.setenv("VROOM_CONNECTION_SIZE" = 131072*2)
+okc_shots_2017 = teams_shots(teams = "Oklahoma City Thunder", seasons = 2017)
+okc_shots_2018 = teams_shots(teams = "Oklahoma City Thunder", seasons = 2018)
+okc_shots_2019 = teams_shots(teams = "Oklahoma City Thunder", seasons = 2019)
+okc_shots_2020 = teams_shots(teams = "Oklahoma City Thunder", seasons = 2020)
+okc_shots_2021 = teams_shots(teams = "Oklahoma City Thunder", seasons = 2021)
+
+#Combining year data frames
+okc_shots = rbind(okc_shots_2017,okc_shots_2018) %>% rbind(.,okc_shots_2019) %>% rbind(.,okc_shots_2020) %>% rbind(.,okc_shots_2021)
+
+#Adjusting variables to scale, factored by 10, shift y by 42 (half length of court minus distance from basket to baseline)
+okc_shots = okc_shots %>% mutate(locationX = locationX/10, locationY = (locationY/10) - 42)
+shot_distance = mean(okc_shots$distanceShot)
+
+#Find Field Goal % by Year
+okc_shots = okc_shots %>% mutate(FGP = sum(isShotMade)/length(isShotMade))
+
+#Start of shot plot
+shot_plot = ggplot(data=okc_shots, aes(x=locationX, y=locationY, color=typeEvent))+geom_point()
+#Animate shot plot
+shot_plot = shot_plot+transition_states(slugSeason)+enter_fade()+exit_drift()
+```
+```{r,message=FALSE,echo=FALSE,include=FALSE}
+#Court background
+drawNBAcourt <- function(p, size=1.5, col="black", full=FALSE) {
+
+  crcl <- function(x0, y0, r, span=r, nsteps=100) {
+    x <- seq(x0-span,x0+span,length.out=nsteps)
+    ylo <- y0-sqrt(r^2-(x-x0)^2)
+    yup <- y0+sqrt(r^2-(x-x0)^2)
+    data.frame(x=x, ylo=ylo, yup=yup)
+  }
+
+  x <- y <- ylo <- yup  <- NULL
+  outbox <- data.frame(x=c(-25,-25,25,25,-25),
+                       y=c(-47,0,0,-47,-47))
+  FT <- crcl(0,-28,6)
+  halfcourt <- crcl(0,0,6)
+  key <- data.frame(x=-c(-8,-8,8,8,-8),y=-c(47,28,28,47,47))
+  keyins <- data.frame(x=c(-6,-6,6,6,-6),y=-c(47,28,28,47,47))
+  restr <- crcl(x0=0, y0=-41.25, r=4, nsteps=200)
+  rim <- crcl(x0=0, y0=-41.75, r=0.75)
+  backboard <- data.frame(x=c(-3,3), y=-c(43,43))
+  crcl3pt <- crcl(x0=0, y0=-41.75, r=23.75, span=22)
+  ln3pt <- data.frame(x=c(-22,-22,crcl3pt$x,22,22),
+                      ylo=c(-47,-47+169/12,crcl3pt$ylo,-47+169/12,-47),
+                      yup=c(-47,-47+169/12,crcl3pt$yup,-47+169/12,-47))
+
+  p <- p +
+    ###outside box:
+    geom_path(data=outbox, aes(x, y), size=size, color=col) +
+    ###halfcourt semicircle:
+    geom_path(data=halfcourt, aes(x=x, y=ylo), size=size, color=col) +
+    ###solid FT semicircle above FT line:
+    geom_path(data=FT, aes(x=x, y=yup), size=size, color=col) +
+    ###dashed FT semicircle below FT line:
+    geom_path(data=FT, aes(x=x, y=ylo), linetype='dashed', size=size, color=col) +
+    ###key:
+    geom_path(data=key, aes(x, y), size=size, color=col) +
+    ###box inside the key:
+    geom_path(data=keyins, aes(x, y), size=size, color=col) +
+    ###restricted area semicircle:
+    geom_path(data=restr, aes(x=x, y=yup), size=size, color=col) +
+    ###rim:
+    geom_path(data=rim, aes(x=x, y=ylo), size=size, color=col) +
+    geom_path(data=rim, aes(x=x, y=yup), size=size, color=col) +
+    ###backboard:
+    geom_path(data=backboard, aes(x, y), lineend='butt', size=size, color=col) +
+    ###three-point line:
+    geom_path(data=ln3pt, aes(x=x, y=yup), size=size, color=col)
+   if (full) {
+    p <- p +
+      ###outside box:
+      geom_path(data=outbox, aes(x,-y), size=size, color=col) +
+      ###halfcourt semicircle:
+      geom_path(data=halfcourt, aes(x=x, y=-ylo), size=size, color=col) +
+      ###solid FT semicircle above FT line:
+      geom_path(data=FT, aes(x=x, y=-yup), size=size, color=col) +
+      ###dashed FT semicircle below FT line:
+      geom_path(data=FT, aes(x=x, y=-ylo), linetype='dashed', size=size, color=col) +
+      ###key:
+      geom_path(data=key, aes(x, -y), size=size, color=col) +
+      ###box inside the key:
+      geom_path(data=keyins, aes(x, -y), size=size, color=col) +
+      ###restricted area semicircle:
+      geom_path(data=restr, aes(x=x, y=-yup), size=size, color=col) +
+      ###rim:
+      geom_path(data=rim, aes(x=x, y=-ylo), size=size, color=col) +
+      geom_path(data=rim, aes(x=x, y=-yup), size=size, color=col) +
+      ###backboard:
+      geom_path(data=backboard, aes(x, -y), lineend='butt', size=size, color=col) +
+      ###three-point line:
+      geom_path(data=ln3pt, aes(x=x, y=-yup), size=size, color=col)
+  }
+  return(p)
+}
+```
+
+```{r,message=FALSE,echo=FALSE,include=FALSE}
+#Add court, titles, and team colors to shot plot
+shot_plot = drawNBAcourt(shot_plot,full = TRUE)
+shot_plot = shot_plot + theme_classic() + labs(title = "Oklahoma City Thunder Shot Charts: 2017-2021", subtitle = "Season: {closest_state}") + scale_color_manual(values=c("blue", "orange"),name = "Shot Outcome")+xlab("")+ylab("")
+```
+
+```{r,message=FALSE,echo=FALSE,include=FALSE}
+#Calculate average distance and FG% for each season
+shot_dist = okc_shots %>% group_by(slugSeason) %>% summarise(mean(distanceShot))
+shot_dist = cbind(shot_dist$slugSeason,round(shot_dist$`mean(distanceShot)`,2))
+
+shot_acc = okc_shots %>% group_by(slugSeason) %>% summarise(sum(isShotMade)/length(isShotMade))
+
+#Adjust to percentage
+shot_acc = cbind(shot_acc$slugSeason,round(shot_acc$`sum(isShotMade)/length(isShotMade)`*100,2))
+
+#FG% Table
+colnames(shot_acc) = c("Season","Field Goal Percentage (%)")
+acc_table = knitr::kable(shot_acc)
+
+#Average Distance Table
+colnames(shot_dist) = c("Season","Average Shot Distance in Feet")
+dist_table = knitr::kable(shot_dist)
+
+```
+
+```{r,message=F,echo=FALSE,include=FALSE}
+#Bring in new data for standings
+Sys.setenv("VROOM_CONNECTION_SIZE" = 131072*2)
+okc_standing_2017 = nbastatR::standings(seasons = 2017)[21,]
+okc_standing_2018 = nbastatR::standings(seasons = 2018)[21,]
+okc_standing_2019 = nbastatR::standings(seasons = 2019)[21,]
+okc_standing_2020 = nbastatR::standings(seasons = 2020)[21,]
+okc_standing_2021 = nbastatR::standings(seasons = 2021)[21,]
+```
+```{r,include=FALSE}
+#Condense the data frame for essential variables
+okc_2017 = okc_standing_2017 %>% select(slugSeason,recordOverall,wins,losses,rankPlayoffs,rankDivision)
+okc_2018 = okc_standing_2018 %>% select(slugSeason,recordOverall,wins,losses,rankPlayoffs,rankDivision)
+okc_2019 = okc_standing_2019 %>% select(slugSeason,recordOverall,wins,losses,rankPlayoffs,rankDivision)
+okc_2020 = okc_standing_2020 %>% select(slugSeason,recordOverall,wins,losses,rankPlayoffs,rankDivision)
+okc_2021 = okc_standing_2021 %>% select(slugSeason,recordOverall,wins,losses,rankPlayoffs,rankDivision)
+
+#Combine to data frame
+okc_standings = rbind(okc_2017,okc_2018) %>% rbind(.,okc_2019) %>% rbind(.,okc_2020) %>% rbind(.,okc_2021)
+
+#Condense for ranks within conference and division
+okc_ranks = okc_standings %>% select(slugSeason,recordOverall,rankPlayoffs,rankDivision)
+
+colnames(okc_ranks) = c("Season","Record","Conference Rank","Division Rank")
+
+#Join ranks with accuracy and distance
+shot_acc_df = data.frame(shot_acc)
+shot_dist_df = data.frame(shot_dist)
+okc_rank_w_FGP = inner_join(okc_ranks,shot_acc_df,by="Season") %>% inner_join(.,shot_dist_df,by = "Season")
+
+#Ranks Table
+colnames(okc_rank_w_FGP) = c("Season","Record","Conference Rank","Division Rank","Field Goal Percentage (%)", "Average Shot Distance in Feet")
+rank_table = knitr::kable(okc_rank_w_FGP)
+
+```
+
+## Oklahoma City Thunder's Shot Charts
+
+```{r,echo=F,fig.width=5,fig.height=6}
+shot_plot
+```
+
+
+
+
+### Initial Thoughts
+- Deep mid-range shots disappear over time  
+- Three point shots get deeper over time  
+
+### Shot Accuracy
+
+```{r,echo=FALSE}
+acc_table
+```
+
+### Shot Distance
+
+```{r,echo=FALSE}
+dist_table
+```
+
+
+## Further Explanation
+
+### Initial Thoughts
+- Deep mid-range shots have lost their value in the game as higher percentage (closer) 2 point shots and 3 point shots have been the focus in recent years.  
+- As 3 point shots become more valued and utilized, defenses have spent more time defending the 3 point line. This adjustment has made offenses look to create more space for shots by shooting further behind the line.  
+
+### Shot Accuracy
+- The table demonstrates the field goal percentage of the team for each season. As the graphic displays the individual makes and misses, it is hard to see the overall accuracy of the team.  
+
+### Shot Distance
+- The graphic also vaguely shows the shift in shots moving further away from the basket as teams have been utilizing the 3 point shot much more frequently in recent seasons.   
+- The team also follows the league wide shift to utilize the 3 point shot more as shown with the large increase in distance from the 2016-17 season to the 2017-18 season.  
+
+## Deeper Trends
+
+The Thunder have gone through major roster changes in recent years, with 2016-2017 being the first year without star forward Kevin Durant. We saw the team continue to make the playoffs after, being led by star guard Russell Westbrook, who left the team after the 2018-19 season. Oklahoma City went the the playoffs the following year, but failed to make it in 2020-21. Using our data, we can see the shift in field goal percentage over the years, and the drop that follows the lack of a playoff appearance.  
+```{r, echo=F}
+#chart for FGP and conf/div rank
+rank_table
+```
+```{r,echo=FALSE}
+#Adjust conference rank to display reverse order, higher value is better finish in the standings
+okc_rank_w_FGP = data.frame(okc_rank_w_FGP)
+okc_rank_w_FGP = okc_rank_w_FGP %>% mutate(Conference.Rank = 15-Conference.Rank)
+
+#Adjust to pivot data frame
+okc_adjust = okc_rank_w_FGP %>% select(Season, Conference.Rank, Field.Goal.Percentage....) %>% mutate(Conference.Rank = as.character(Conference.Rank))
+
+#Pivot table to combine Rank and FG% into factors within a column
+okc_comp = okc_adjust %>% pivot_longer(cols = -Season, names_to = "Stat") %>% mutate(value = as.numeric(value)) %>% mutate(scaled_val = ifelse(Stat == "Conference.Rank",value,value/5))
+
+#Plot to demonstrate the relationship between conference standing and FG%
+rank_plot = ggplot(okc_comp,aes(x=Season, y=scaled_val, fill = Stat))+geom_col(position = "dodge")+scale_fill_manual(values = c("blue","orange"),labels = c("Conference Standing","Field Goal Percentage"))+scale_y_continuous(limits = c(0,15),sec.axis = sec_axis(~. *5, name = "FG%"))+labs(y="Conference Standing",title = "Conference Standing Compared to FG Percentage")+theme_light()+theme(legend.position = "top")
+rank_plot
+```
+
+This Chart demonstrates how the teams field goal percentage relates to their final standing in the conference. The conference standings are scaled to have higher values be a better finish, as you would see them in a normal standings list. For instance, seeing 15 as the highest means that they are better than all other teams in the conference. What this chart displays is that as the Thunder's field goal percentage dipped below 45%, they fell to the bottom of the conference, finishing 14th of 15 teams. While 45% is not necessarily a threshold that constitutes a playoff team from a non-playoff team, it is interesting to see that the teams standing in the conference fell off so dramatically after not achieving the mark one time in a five year span.
