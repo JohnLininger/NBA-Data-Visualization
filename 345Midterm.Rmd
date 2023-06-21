@@ -46,6 +46,7 @@ shot_plot = shot_plot+transition_states(slugSeason)+enter_fade()+exit_drift()
 ```
 ```{r,message=FALSE,echo=FALSE,include=FALSE}
 #Court background
+#Source: https://rdrr.io/github/sndmrc/BasketballAnalyzeR/src/R/drawNBAcourt.R
 drawNBAcourt <- function(p, size=1.5, col="black", full=FALSE) {
 
   crcl <- function(x0, y0, r, span=r, nsteps=100) {
